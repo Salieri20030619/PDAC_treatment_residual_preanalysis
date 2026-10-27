@@ -1,0 +1,30 @@
+from pathlib import Path
+import pandas as pd,json,numpy as np
+R=Path('/mnt/BioDisk/wangmingyuan/PDAC_treatment_residual_preanalysis')
+sets=json.loads((R/'00_docs/genesets_frozen.json').read_text())
+selected=['REACTOME_CHAPERONE_MEDIATED_AUTOPHAGY','HWANG_MESENCHYMAL','HWANG_NEURAL_LIKE_PROGENITOR','HALLMARK_IL6_JAK_STAT3_SIGNALING','HALLMARK_UNFOLDED_PROTEIN_RESPONSE','REACTOME_ATF4_ACTIVATES_GENES_IN_RESPONSE_TO_ENDOPLASMIC_RETICULUM_STRESS']
+st=pd.read_csv(R/'06_tables/patient_mechanism_statistics.tsv',sep='\t')
+bg=pd.read_csv(R/'06_tables/background_adjusted_statistics.tsv',sep='\t')
+cross=pd.read_csv(R/'06_tables/cross_cohort_direction.tsv',sep='\t')
+print('KEY_SENSITIVITIES')
+print(st[st.geneset.isin(selected)&st.cell_group.isin(['Malignant','MalStrictQC'])][['dataset','comparison','cell_group','geneset','n_untreated','n_treated','effect','pvalue','FDR','loo_same_direction']].to_string(index=False))
+print('BACKGROUND_MALIGNANT')
+print(bg[(bg.cell_group=='Malignant')&bg.geneset.isin(selected[:3])][['dataset','covariate','geneset','effect','pvalue','FDR']].to_string(index=False))
+print('CMA_MEMBERS',json.dumps(sets[selected[0]]))
+for ds,cmp in [('GSE205013','Primary'),('GSE202051','CRT')]:
+    d=pd.read_csv(R/'06_tables'/f'{ds}_Malignant_{cmp}_edgeR.tsv.gz',sep='\t')
+    print('TOP_DE',ds);print(d.sort_values('FDR').head(12)[['gene','logFC','PValue','FDR']].to_string(index=False))
+print('CROSS_GATE_COUNT',int(cross.candidate_gate.sum()))
+vd=pd.read_csv(R/'06_tables/GSE202051_Malignant_CRT_edgeR.tsv.gz',sep='\t')
+vs=pd.read_csv(R/'06_tables/GSE202051_MalStrictQC_CRT_edgeR.tsv.gz',sep='\t')
+vjoin=vd.merge(vs,on='gene',suffixes=('_main','_strict'))
+audit={'validation_main_FDR05':int((vd.FDR<.05).sum()),'validation_strict_FDR05':int((vs.FDR<.05).sum()),'main_FDR05_MTgenes':int(((vd.FDR<.05)&vd.gene.str.startswith('MT-')).sum()),'both_FDR05_same_direction':int(((vjoin.FDR_main<.05)&(vjoin.FDR_strict<.05)&(np.sign(vjoin.logFC_main)==np.sign(vjoin.logFC_strict))).sum())}
+print('VALIDATION_GENE_STABILITY',json.dumps(audit))
+(R/'06_tables/validation_gene_stability_summary.json').write_text(json.dumps(audit,indent=2))
+q=pd.read_csv(R/'06_tables/patient_cellgroup_QC.tsv',sep='\t')
+meta=pd.read_csv(R/'01_metadata/patient_metadata.tsv',sep='\t')
+q=q.merge(meta[['dataset','patient_id','treatment_status','regimen_group','comparison_scope']],on=['dataset','patient_id'])
+print('VALIDATION_MALIGNANT_QC',q[(q.dataset=='GSE202051')&(q.cell_group=='Malignant')&q.regimen_group.isin(['Untreated','CRT'])].groupby('regimen_group')[['median_mt','median_logUMI']].median().to_string())
+print('CNV_CALIBRATION')
+print(pd.read_csv(R/'04_qc/CNV_holdout_calibration.tsv',sep='\t').to_string(index=False))
+print('FINAL_EVIDENCE_REVIEW_COMPLETE')

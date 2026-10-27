@@ -1,0 +1,5 @@
+cat('Executable:', file.path(R.home('bin'), 'Rscript'), '\n')
+cat('R:', R.version.string, '\n')
+pkgs <- c('Seurat','SeuratObject','Matrix','edgeR','limma','DESeq2','SingleCellExperiment','scDblFinder','infercnv','copykat','msigdbr','fgsea','zellkonverter','rhdf5','data.table','ggplot2')
+for (pkg in pkgs) cat(pkg, if (requireNamespace(pkg, quietly=TRUE)) as.character(packageVersion(pkg)) else 'MISSING', '\n')
+cat('R_PROBE_COMPLETE\n')
